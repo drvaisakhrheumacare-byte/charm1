@@ -97,12 +97,10 @@ def generate_docx(df, selected_date, default_prefix_input):
     section.right_margin = Cm(1.0)
 
     # --- INTELLIGENT COLUMN DETECTION ---
-    # Finds columns safely
     col_name = df.columns[0]
     col_id = df.columns[1]
     col_prefix = None
 
-    # Try to find better matches
     for col in df.columns:
         if "name" in col.lower():
             col_name = col
@@ -122,7 +120,6 @@ def generate_docx(df, selected_date, default_prefix_input):
         
         # --- DETERMINE PREFIX ---
         current_prefix = default_prefix_input
-        
         if col_prefix:
             row_prefix = str(row[col_prefix])
             if row_prefix.lower() != 'nan' and row_prefix.strip():
@@ -132,9 +129,8 @@ def generate_docx(df, selected_date, default_prefix_input):
         header_p = doc.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        display_prefix = current_prefix.upper().strip() if current_prefix else "NONE"
-        
-        run_h = header_p.add_run(f"Name: {emp_name} ({emp_id})  |  Prefix: {display_prefix}  |  Month: {selected_date}")
+        # Removed Prefix from here as requested
+        run_h = header_p.add_run(f"Name: {emp_name} ({emp_id})  |  Month: {selected_date}")
         run_h.bold = True
         run_h.font.size = Pt(12)
         run_h.font.name = 'Arial'
@@ -153,7 +149,7 @@ def generate_docx(df, selected_date, default_prefix_input):
                 unique_code = generate_secure_code(current_prefix)
                 create_coupon_content(cell, emp_name, emp_id, unique_code, selected_date)
         
-        # New Page for next employee (unless it's the last one)
+        # New Page for next employee
         if index < len(df) - 1:
             doc.add_page_break()
         
@@ -175,7 +171,6 @@ def check_password():
     if st.session_state["password_correct"]:
         return True
     
-    # If running locally without secrets, bypass password
     if "password" not in st.secrets:
         return True
 
