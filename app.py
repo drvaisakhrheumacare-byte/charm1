@@ -22,13 +22,11 @@ def get_sheet_csv_url(original_url):
         return None, "Empty URL"
     
     try:
-        # Extract Sheet ID
         sheet_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', original_url)
         if not sheet_id_match:
             return None, "Could not find Sheet ID."
         sheet_id = sheet_id_match.group(1)
 
-        # Extract GID (The specific tab ID)
         gid = "0"
         gid_match = re.search(r'[#&?]gid=([0-9]+)', original_url)
         if gid_match:
@@ -129,8 +127,8 @@ def generate_docx(df, selected_date, default_prefix_input):
         header_p = doc.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # Removed Prefix from here as requested
-        run_h = header_p.add_run(f"Name: {emp_name} ({emp_id})  |  Month: {selected_date}")
+        # CHANGED: Now only Name and Date. No ID.
+        run_h = header_p.add_run(f"{emp_name}   {selected_date}")
         run_h.bold = True
         run_h.font.size = Pt(12)
         run_h.font.name = 'Arial'
