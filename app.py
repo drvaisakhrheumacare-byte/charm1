@@ -11,7 +11,6 @@ import re
 import datetime
 
 # --- CONFIGURATION ---
-# Default to the link you shared
 DEFAULT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1mYapaNzFhSdWTLWaK1cedvQVcjCgvr17EQ-SkEpwV24/edit?gid=0#gid=0"
 COUPON_VALUE = "₹10"
 
@@ -19,7 +18,9 @@ COUPON_VALUE = "₹10"
 
 def get_sheet_csv_url(original_url):
     """Extracts ID and GID (Tab ID) to create a CSV export link."""
-    if not original_url: return None, "Empty URL"
+    if not original_url:
+        return None, "Empty URL"
+    
     try:
         # Extract Sheet ID
         sheet_id_match = re.search(r'/d/([a-zA-Z0-9-_]+)', original_url)
@@ -28,7 +29,7 @@ def get_sheet_csv_url(original_url):
         sheet_id = sheet_id_match.group(1)
 
         # Extract GID (The specific tab ID)
-        gid = "0" 
+        gid = "0"
         gid_match = re.search(r'[#&?]gid=([0-9]+)', original_url)
         if gid_match:
             gid = gid_match.group(1)
@@ -43,10 +44,11 @@ def generate_secure_code(prefix):
     part1 = ''.join(secrets.choice(alphabet) for _ in range(3))
     part2 = ''.join(secrets.choice(alphabet) for _ in range(4))
     
-    # Clean prefix
     clean_prefix = str(prefix).upper().strip()
-    # Handle empty/invalid prefixes gracefully
-    if clean_prefix in ['NAN', 'NONE', '', 'nan']:
+    
+    # Check for invalid prefixes
+    invalid_prefixes = ['NAN', 'NONE', '', 'nan']
+    if clean_prefix in invalid_prefixes:
         return f"{part1}-{part2}"
         
     return f"{clean_prefix}-{part1}-{part2}"
@@ -95,10 +97,19 @@ def generate_docx(df, selected_date, default_prefix_input):
     section.right_margin = Cm(1.0)
 
     # --- INTELLIGENT COLUMN DETECTION ---
-    col_name = next((c for c in df.columns if "name" in c.lower()), df.columns[0])
-    col_id = next((c for c in df.columns if "code" in c.lower() or "id" in c.lower()), df.columns[1])
-    # Look for a column containing "prefix"
-    col_prefix = next((c for c in df.columns if "prefix" in c.lower()), None)
+    # Finds columns safely
+    col_name = df.columns[0]
+    col_id = df.columns[1]
+    col_prefix = None
+
+    # Try to find better matches
+    for col in df.columns:
+        if "name" in col.lower():
+            col_name = col
+        if "code" in col.lower() or "id" in col.lower():
+            col_id = col
+        if "prefix" in col.lower():
+            col_prefix = col
     
     st.info(f"Using columns: Name='{col_name}', ID='{col_id}', Prefix='{col_prefix if col_prefix else 'Using Default'}'")
 
@@ -110,13 +121,10 @@ def generate_docx(df, selected_date, default_prefix_input):
         emp_id = str(row[col_id])
         
         # --- DETERMINE PREFIX ---
-        # 1. Start with the default manual input
         current_prefix = default_prefix_input
         
-        # 2. If the sheet has a prefix column, check the value for this row
         if col_prefix:
             row_prefix = str(row[col_prefix])
-            # If it's valid (not empty/nan), use it instead of default
             if row_prefix.lower() != 'nan' and row_prefix.strip():
                 current_prefix = row_prefix
 
@@ -145,7 +153,7 @@ def generate_docx(df, selected_date, default_prefix_input):
                 unique_code = generate_secure_code(current_prefix)
                 create_coupon_content(cell, emp_name, emp_id, unique_code, selected_date)
         
-        # New Page for next employee
+        # New Page for next employee (unless it's the last one)
         if index < len(df) - 1:
             doc.add_page_break()
         
@@ -159,16 +167,73 @@ def generate_docx(df, selected_date, default_prefix_input):
 # --- MAIN APP UI ---
 st.set_page_config(page_title="Coupon Generator", page_icon="🎫")
 
+# Initialize Session State
 if "password_correct" not in st.session_state:
     st.session_state["password_correct"] = False
 
 def check_password():
-    if st.session_state["password_correct"]: return True
-    if "password" not in st.secrets: return True 
+    if st.session_state["password_correct"]:
+        return True
+    
+    # If running locally without secrets, bypass password
+    if "password" not in st.secrets:
+        return True
 
     pwd = st.text_input("Enter App Password", type="password")
     if pwd == st.secrets["password"]:
         st.session_state["password_correct"] = True
         return True
     elif pwd:
-        st.
+        st.error("Incorrect Password")
+    return False
+
+if check_password():
+    st.title("🎫 Monthly Coupon Generator")
+
+    with st.container():
+        st.subheader("1. Select Month")
+        now = datetime.datetime.now()
+        current_year = now.year
+        months = ["January", "February", "March", "April", "May", "June", 
+                  "July", "August", "September", "October", "November", "December"]
+        years = [current_year + i for i in range(11)] 
+        
+        c1, c2 = st.columns(2)
+        sel_month = c1.selectbox("Month", options=months, index=now.month - 1)
+        sel_year = c2.selectbox("Year", options=years, index=0)
+        selected_date = f"{sel_month} {sel_year}"
+
+        st.subheader("2. Settings")
+        sheet_url = st.text_input("Google Sheet URL", value=DEFAULT_SHEET_URL)
+        default_prefix = st.text_input("Fallback Prefix (Used if 'Prefix' column is empty)", value="EMP")
+
+    if st.button("Generate Coupons", type="primary"):
+        st.write("---")
+        with st.spinner('Fetching Data...'):
+            try:
+                # 1. Fetch Sheet
+                link, err = get_sheet_csv_url(sheet_url)
+                if err:
+                    st.error(f"Error: {err}")
+                    st.stop()
+                
+                df = pd.read_csv(link)
+                df.columns = [c.strip() for c in df.columns]
+                st.write(f"✅ Loaded {len(df)} Employees.")
+
+                # 2. Generate
+                docx_file = generate_docx(df, selected_date, default_prefix)
+                
+                safe_date = re.sub(r'[^\w\s-]', '', selected_date).strip().replace(' ', '_')
+                file_name = f"Coupons_{safe_date}.docx"
+
+                st.success("🎉 Generation Complete!")
+                st.download_button(
+                    label="📥 Download File",
+                    data=docx_file,
+                    file_name=file_name,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+                    
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
