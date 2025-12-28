@@ -127,7 +127,6 @@ def generate_docx(df, selected_date, default_prefix_input):
         header_p = doc.add_paragraph()
         header_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # CHANGED: Now only Name and Date. No ID.
         run_h = header_p.add_run(f"{emp_name}   {selected_date}")
         run_h.bold = True
         run_h.font.size = Pt(12)
