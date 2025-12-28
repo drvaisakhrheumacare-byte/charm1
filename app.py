@@ -213,6 +213,11 @@ if check_password():
                 df.columns = [c.strip() for c in df.columns]
                 st.write(f"✅ Loaded {len(df)} Employees.")
 
+                # --- Multi-centre filtering logic ---
+                # If your Users tab is loaded separately, you can filter here
+                # Example: user_centre = "CHN,BLR,AMD"
+                # For now, we assume df already contains the right employees
+
                 # 2. Generate
                 docx_file = generate_docx(df, selected_date, default_prefix)
                 
@@ -221,11 +226,4 @@ if check_password():
 
                 st.success("🎉 Generation Complete!")
                 st.download_button(
-                    label="📥 Download File",
-                    data=docx_file,
-                    file_name=file_name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-                    
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                    label="📥
